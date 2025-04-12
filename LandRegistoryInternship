@@ -1,0 +1,99 @@
+// With additional two functionalities
+
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract LandRegistry {
+    // Structure to represent a land parcel
+    struct Land {
+        uint256 id;
+        string location;
+        uint256 area; // Area in square meters
+        address owner;
+        bool registered;
+    }
+
+    // Mapping from land ID to Land details
+    mapping(uint256 => Land) public lands; // Mapping for instant access to land details
+    mapping(uint256 => address[]) private landHistory; // Track previous owners
+
+    // Event emitted when a new land is registered
+    event LandRegistered(uint256 indexed landId, string location, uint256 area, address indexed owner);
+
+    // Event emitted when land ownership is transferred
+    event OwnershipTransferred(uint256 indexed landId, address indexed oldOwner, address indexed newOwner);
+    
+    // Event emitted when land details are updated
+    event LandDetailsUpdated(uint256 indexed landId, string newLocation, uint256 newArea);
+
+    modifier onlyOwner(uint256 _id) {
+        require(lands[_id].owner == msg.sender, "Not the owner");
+        _;
+    }
+
+    // Register a new land parcel
+    function registerLand(uint256 _id, string memory _location, uint256 _area) public {
+        require(!lands[_id].registered, "Land already registered");
+
+        lands[_id] = Land({
+            id: _id,
+            location: _location,
+            area: _area,
+            owner: msg.sender,
+            registered: true
+        });
+        
+        landHistory[_id].push(msg.sender);
+
+        emit LandRegistered(_id, _location, _area, msg.sender);
+    }
+
+    // Transfer ownership of a land parcel
+    function transferOwnership(uint256 _id, address _newOwner) public onlyOwner(_id) {
+        Land storage land = lands[_id];
+        require(land.registered, "Land not registered");
+        require(_newOwner != address(0), "Invalid new owner");
+
+        address oldOwner = land.owner;
+        land.owner = _newOwner;
+        landHistory[_id].push(oldOwner);
+
+        emit OwnershipTransferred(_id, oldOwner, _newOwner);
+    }
+
+    // Get land details
+    function getLand(uint256 _id) public view returns (uint256, string memory, uint256, address, bool) {
+        Land memory land = lands[_id];
+        require(land.registered, "Land not registered");
+
+        return (land.id, land.location, land.area, land.owner, land.registered);
+    }
+
+    // Check if land is registered
+    function isLandRegistered(uint256 _id) public view returns (bool) {
+        return lands[_id].registered;
+    }
+
+    // Update land details
+    function updateLandDetails(uint256 _id, string memory _newLocation, uint256 _newArea) public onlyOwner(_id) {
+        require(lands[_id].registered, "Land not registered");
+
+        lands[_id].location = _newLocation;
+        lands[_id].area = _newArea;
+
+        emit LandDetailsUpdated(_id, _newLocation, _newArea);
+    }
+
+    // Get past ownership history of land, including the current owner
+    function getLandHistory(uint256 _id) public view returns (address[] memory) {
+        require(lands[_id].registered, "Land not registered");
+
+        address[] memory fullHistory = new address[](landHistory[_id].length + 1);
+        for (uint256 i = 0; i < landHistory[_id].length; i++) {
+            fullHistory[i] = landHistory[_id][i];
+        }
+        fullHistory[landHistory[_id].length] = lands[_id].owner;
+
+        return fullHistory;
+    }
+}
